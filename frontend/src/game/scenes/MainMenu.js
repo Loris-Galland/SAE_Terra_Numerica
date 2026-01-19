@@ -1,72 +1,69 @@
-import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
+import { EventBus } from '../EventBus';
 
-export class MainMenu extends Scene
-{
-    logoTween;
-
-    constructor ()
-    {
+export class MainMenu extends Scene {
+    constructor() {
         super('MainMenu');
     }
 
-    create ()
-    {
-        this.add.image(512, 384, 'background');
+    create() {
+        const { width, height } = this.scale;
 
-        this.logo = this.add.image(512, 300, 'logo').setDepth(100);
+        // Fond d'écran
+        this.add.image(width / 2, height / 2, 'background').setAlpha(0.4);
 
-        this.add.text(512, 460, 'Main Menu', {
-            fontFamily: 'Arial Black', fontSize: 38, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
+        // Titre
+        this.add.text(width / 2, 150, 'ESCAPE GAME\nTERRA NUMERICA', {
+            fontFamily: 'Arial Black',
+            fontSize: 64,
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 8,
             align: 'center'
-        }).setDepth(100).setOrigin(0.5);
+        }).setOrigin(0.5);
+
+        // Bouton Jouer
+        const startBtn = this.add.text(width / 2, height / 2 + 100, 'COMMENCER', {
+            fontFamily: 'Arial Black',
+            fontSize: 32,
+            color: '#00ff00',
+            backgroundColor: '#000000',
+            padding: { x: 20, y: 10 }
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+
+        startBtn.on('pointerdown', () => {
+            this.scene.start('Game');
+        });
         
+        startBtn.on('pointerover', () => startBtn.setStyle({ fill: '#ffff00' }));
+        startBtn.on('pointerout', () => startBtn.setStyle({ fill: '#00ff00' }));
+
+        // On affiche une carte qui se retourne toute seule 
+        this.createDemoCard(width - 150, height - 200, '1'); 
+
         EventBus.emit('current-scene-ready', this);
     }
 
-    changeScene ()
-    {
-        if (this.logoTween)
-        {
-            this.logoTween.stop();
-            this.logoTween = null;
-        }
-
-        this.scene.start('Game');
-    }
-
-    moveLogo (reactCallback)
-    {
-        if (this.logoTween)
-        {
-            if (this.logoTween.isPlaying())
-            {
-                this.logoTween.pause();
+    createDemoCard(x, y, id) {
+        // Commence par le DOS
+        const card = this.add.image(x, y, `dos_${id}`).setScale(0.4);
+        
+        // Animation de retournement infinie
+        this.tweens.add({
+            targets: card,
+            scaleX: 0, 
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            hold: 500, 
+            onYoyo: () => {
+                // Au moment où la carte est invisible (scaleX = 0), on change la texture
+                const currentKey = card.texture.key;
+                const newKey = currentKey === `dos_${id}` ? `devant_${id}` : `dos_${id}`;
+                card.setTexture(newKey);
             }
-            else
-            {
-                this.logoTween.play();
-            }
-        }
-        else
-        {
-            this.logoTween = this.tweens.add({
-                targets: this.logo,
-                x: { value: 750, duration: 3000, ease: 'Back.easeInOut' },
-                y: { value: 80, duration: 1500, ease: 'Sine.easeOut' },
-                yoyo: true,
-                repeat: -1,
-                onUpdate: () => {
-                    if (reactCallback)
-                    {
-                        reactCallback({
-                            x: Math.floor(this.logo.x),
-                            y: Math.floor(this.logo.y)
-                        });
-                    }
-                }
-            });
-        }
+        });
     }
 }
