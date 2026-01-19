@@ -33,7 +33,7 @@ export class Game extends Scene {
         // On lance tous les systèmes
         this.createUISystem(); // Barre recherche
         this.createNotebook(); // Notes
-        this.createHintSystem(); // Indices (Haut Droite)
+        this.createHintSystem(); // Indices
         this.createTimer();    
         this.refreshInventory(); 
         this.createZoomInterface(); 
@@ -73,7 +73,7 @@ export class Game extends Scene {
             targets: this.notificationContainer,
             tweens: [
                 { y: 100, duration: 300, ease: 'Back.out' }, // Descend
-                { delay: 4000, duration: 0 }, // Reste plus longtemps (4s)
+                { delay: 4000, duration: 0 }, // Reste
                 { y: -100, duration: 300, ease: 'Back.in' } // Remonte
             ]
         });
@@ -481,33 +481,43 @@ export class Game extends Scene {
         const takeCard = () => {
             const val = document.getElementById('search-card').value.trim();
 
-            // Check piège : On donne la carte ET on retire le temps
+            // Check piège
             if (GameData.penalties[val]) {
                 const p = GameData.penalties[val];
                 this.applyPenalty(p.time);
                 this.showNotification(`CARTE PIÈGE ! (-${p.time} min)`, 'warning');
                 
-                // On ajoute la carte piège à l'inventaire si elle existe visuellement
                 if (GameData.cards[val] && !this.inventory.includes(val)) {
                     this.inventory.push(val);
                     this.currentPage = Math.ceil(this.inventory.length / this.itemsPerPage) - 1;
                     this.refreshInventory();
                 }
-                
                 document.getElementById('search-card').value = '';
                 return;
             }
 
-            // Check existe pas
+            // Check existence
             if (!GameData.cardIds.includes(val)) {
                 this.showNotification(`Numéro ${val} introuvable.`, 'error');
                 return;
             }
 
-            // Check doublon
+            // Check les doublon
             if (this.inventory.includes(val)) {
                 this.showNotification(`Déjà possédé : ${val}.`, 'info');
                 return;
+            }
+
+            // Check les dépendances
+            const cardData = GameData.cards[val];
+            if (cardData && cardData.requires) {
+                // Vérifie si on a au moins une des cartes requises
+                const hasRequirement = cardData.requires.some(reqId => this.inventory.includes(reqId));
+                if (!hasRequirement) {
+                    this.showNotification(`Impossible de prendre ${val} maintenant.`, 'error');
+                    // Optionnel : Dire "Il vous manque quelque chose..."
+                    return;
+                }
             }
 
             // Ajout valide
