@@ -8,6 +8,9 @@ export class Game extends Scene {
         this.inventory = []; 
         this.currentZoomId = null; 
         this.isFlipped = false; 
+        
+        // Gestion erreurs puzzle T9
+        this.errorCount = 0;
 
         // Pagination inventaire
         this.currentPage = 0;
@@ -30,6 +33,7 @@ export class Game extends Scene {
         // On lance tous les systèmes
         this.createUISystem(); // Barre recherche
         this.createNotebook(); // Notes
+        this.createHintSystem(); // Indices (Haut Droite)
         this.createTimer();    
         this.refreshInventory(); 
         this.createZoomInterface(); 
@@ -56,7 +60,7 @@ export class Game extends Scene {
         // Choix couleur selon type
         if (type === 'success') { color = 0x2e7d32; stroke = 0x00ff00; }
         else if (type === 'error') { color = 0xc62828; stroke = 0xff0000; }
-        else if (type === 'warning') { color = 0xff8f00; stroke = 0xffff00; } // Pour les pénalités
+        else if (type === 'warning') { color = 0xff8f00; stroke = 0xffff00; } 
 
         this.notifBg.setFillStyle(color, 0.95).setStrokeStyle(4, stroke);
         this.notifText.setText(message);
@@ -69,16 +73,36 @@ export class Game extends Scene {
             targets: this.notificationContainer,
             tweens: [
                 { y: 100, duration: 300, ease: 'Back.out' }, // Descend
-                { delay: 2500, duration: 0 }, // Reste
+                { delay: 4000, duration: 0 }, // Reste plus longtemps (4s)
                 { y: -100, duration: 300, ease: 'Back.in' } // Remonte
             ]
         });
     }
 
+    // Système d'indices (Haut Droite)
+    createHintSystem() {
+        this.hintContainer = this.add.container(this.scale.width - 250, 20);
+        
+        const bg = this.add.rectangle(0, 0, 240, 100, 0x000000, 0.6).setOrigin(0, 0).setStrokeStyle(2, 0xffd700);
+        const title = this.add.text(10, 5, "INDICES DISPONIBLES", { font: 'bold 16px Arial', color: '#ffd700' });
+        
+        // Texte modifiable
+        this.hintTextObj = this.add.text(10, 30, "Aucun indice pour l'instant.", { font: '14px Arial', color: '#ffffff', wordWrap: { width: 220 } });
+
+        this.hintContainer.add([bg, title, this.hintTextObj]);
+    }
+
+    showHint(text) {
+        this.hintTextObj.setText(text);
+        // Petit flash pour attirer l'attention
+        this.tweens.add({ targets: this.hintContainer, alpha: 0.5, yoyo: true, repeat: 3, duration: 200 });
+    }
+
     // Timer et Pénalités
     createTimer() {
-        const bg = this.add.rectangle(this.scale.width - 100, 40, 180, 50, 0x000000, 0.7);
-        this.timerText = this.add.text(this.scale.width - 100, 40, this.formatTime(this.initialTime), {
+        // Décalé à gauche pour laisser place aux indices
+        const bg = this.add.rectangle(this.scale.width - 350, 40, 180, 50, 0x000000, 0.7);
+        this.timerText = this.add.text(this.scale.width - 350, 40, this.formatTime(this.initialTime), {
             font: 'bold 32px Arial', color: '#ff0000'
         }).setOrigin(0.5);
 
@@ -201,9 +225,10 @@ export class Game extends Scene {
         };
     }
 
-    // Zoom
+    // Zoom et Puzzles Interactifs
     createZoomInterface() {
         this.zoomContainer = this.add.container(0, 0).setVisible(false).setDepth(100);
+
         this.zoomOverlay = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 0x000000, 0.95).setInteractive();
         this.zoomCardSprite = this.add.sprite(this.scale.width/2, this.scale.height/2, '');
 
@@ -224,42 +249,145 @@ export class Game extends Scene {
     openZoom(id) {
         this.currentZoomId = id;
         this.isFlipped = false;
+        this.errorCount = 0; 
         const cardData = GameData.cards[id] || { name: "Carte inconnue" };
         
+        this.zoomCardSprite.setPosition(this.scale.width/2, this.scale.height/2);
         this.zoomCardSprite.setTexture(`dos_${id}`);
         this.zoomText.setText(cardData.name);
         this.adjustZoomScale();
         
         this.zoomContainer.setVisible(true);
         this.checkActionAvailability(id);
+
+        // Si Puzzle T9, on décale et on affiche le clavier
+        if (cardData.puzzleType === 't9') {
+            this.tweens.add({
+                targets: this.zoomCardSprite,
+                x: this.scale.width * 0.35,
+                duration: 500,
+                ease: 'Power2'
+            });
+            this.renderPhonePuzzle(id);
+        }
         
         // Cache la barre de recherche
         document.getElementById('ui-search-container').style.display = 'none';
-    }
-
-    adjustZoomScale() {
-        const availableWidth = this.scale.width - 100;
-        const availableHeight = this.scale.height - 250; 
-        const scale = Math.min(availableWidth / this.zoomCardSprite.width, availableHeight / this.zoomCardSprite.height, 1.2); 
-        this.zoomCardSprite.setScale(scale);
     }
 
     closeZoom() {
         this.zoomContainer.setVisible(false);
         this.currentZoomId = null;
         
-        // Cache input code et réaffiche recherche
+        // Nettoyage interfaces HTML
         const inputDiv = document.getElementById('game-input-div');
         if (inputDiv) inputDiv.style.display = 'none';
+
+        const puzzleDiv = document.getElementById('puzzle-container');
+        if (puzzleDiv) puzzleDiv.remove();
         
         const searchUI = document.getElementById('ui-search-container');
         if (searchUI) searchUI.style.display = 'flex';
     }
 
+    // Puzzle Téléphone HTML
+    renderPhonePuzzle(cardId) {
+        const div = document.createElement('div');
+        div.id = 'puzzle-container';
+        div.style.display = 'block';
+
+        div.innerHTML = `
+            <div class="phone-interface">
+                <div id="phone-display" class="phone-screen"></div>
+                <div class="phone-grid">
+                    <button class="phone-btn" data-k="1">1<span>&nbsp;</span></button>
+                    <button class="phone-btn" data-k="2">2<span>ABC</span></button>
+                    <button class="phone-btn" data-k="3">3<span>DEF</span></button>
+                    <button class="phone-btn" data-k="4">4<span>GHI</span></button>
+                    <button class="phone-btn" data-k="5">5<span>JKL</span></button>
+                    <button class="phone-btn" data-k="6">6<span>MNO</span></button>
+                    <button class="phone-btn" data-k="7">7<span>PQRS</span></button>
+                    <button class="phone-btn" data-k="8">8<span>TUV</span></button>
+                    <button class="phone-btn" data-k="9">9<span>WXYZ</span></button>
+                    <button class="phone-btn" data-k="*">*<span></span></button>
+                    <button class="phone-btn" data-k="0">0<span>+</span></button>
+                    <button class="phone-btn" data-k="#">#<span></span></button>
+                    
+                    <button id="btn-validate-phone" class="phone-btn phone-validate">APPELER 📞</button>
+                    <button id="btn-clear-phone" class="phone-btn" style="background:#800; grid-column:span 3; margin-top:5px;">EFFACER</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(div);
+
+        const display = document.getElementById('phone-display');
+        const keys = document.querySelectorAll('.phone-btn[data-k]');
+        
+        keys.forEach(btn => {
+            btn.onclick = () => {
+                if (display.innerText.length < 12) {
+                    display.innerText += btn.getAttribute('data-k');
+                }
+            };
+        });
+
+        document.getElementById('btn-clear-phone').onclick = () => {
+            display.innerText = '';
+        };
+
+        document.getElementById('btn-validate-phone').onclick = () => {
+            const codeEntered = display.innerText;
+            const targetData = GameData.cards[cardId];
+
+            if (codeEntered === targetData.solution) {
+                // Anti-spam
+                if (this.inventory.includes(targetData.rewards[0])) {
+                    this.showNotification("Déjà déverrouillé !", 'info');
+                    return;
+                }
+
+                this.showNotification(targetData.successMessage, 'success');
+                targetData.rewards.forEach(r => {
+                    if (!this.inventory.includes(r)) this.inventory.push(r);
+                });
+                this.refreshInventory();
+                this.closeZoom();
+            } else {
+                this.errorCount++;
+                display.innerText = "ERREUR";
+                display.style.color = "red";
+                this.cameras.main.flash(200, 255, 0, 0);
+
+                setTimeout(() => {
+                    display.innerText = "";
+                    display.style.color = "black";
+                }, 1000);
+
+                // Indice après 3 erreurs
+                if (this.errorCount >= 3) {
+                    this.showNotification("INDICE DÉBLOQUÉ (Haut Droite)", 'warning');
+                    this.showHint(targetData.hint); // Affiche dans la zone fixe
+                } else {
+                    this.showNotification(`Faux... ${this.errorCount}/3`, 'error');
+                }
+            }
+        };
+    }
+
+    adjustZoomScale() {
+        // Demi-écran si T9, sinon plein écran
+        const availableWidth = (this.currentZoomId && GameData.cards[this.currentZoomId].puzzleType === 't9') 
+            ? (this.scale.width / 2) - 50  
+            : this.scale.width - 100;      
+
+        const availableHeight = this.scale.height - 250; 
+        const scale = Math.min(availableWidth / this.zoomCardSprite.width, availableHeight / this.zoomCardSprite.height, 1.2); 
+        this.zoomCardSprite.setScale(scale);
+    }
+
     flipCurrentCard() {
         if (!this.currentZoomId) return;
         
-        // Anim flip
         this.tweens.add({
             targets: this.zoomCardSprite, scaleX: 0, duration: 150,
             onComplete: () => {
@@ -278,7 +406,7 @@ export class Game extends Scene {
 
     checkActionAvailability(id) {
         const data = GameData.cards[id];
-        // Action dispo seulement si recto et type machine
+        // Action dispo seulement si recto et type machine (pas puzzle)
         if (this.isFlipped && data && data.type === 'machine') {
             this.actionBtn.setVisible(true);
             this.actionBtn.off('pointerdown').on('pointerdown', () => this.triggerMachine(id));
@@ -290,11 +418,10 @@ export class Game extends Scene {
     triggerMachine(id) {
         const data = GameData.cards[id];
         const inputDiv = document.getElementById('game-input-div');
-        const prompt = document.getElementById('game-input-prompt');
         const field = document.getElementById('game-input-field');
         
         if (inputDiv) {
-            prompt.innerText = data.prompt;
+            document.getElementById('game-input-prompt').innerText = data.prompt;
             field.value = '';
             inputDiv.style.display = 'block';
             field.focus();
@@ -304,6 +431,13 @@ export class Game extends Scene {
                 
                 // Si le code est bon
                 if (val === data.code) {
+                    // Anti-Spam
+                    if (this.inventory.includes(data.rewards[0])) {
+                         this.showNotification("Déjà ouvert !", 'info');
+                         inputDiv.style.display = 'none';
+                         return;
+                    }
+
                     inputDiv.style.display = 'none';
                     let added = 0;
                     data.rewards.forEach(r => {
@@ -314,9 +448,6 @@ export class Game extends Scene {
                         this.showNotification("CODE VALIDE ! Nouvelles cartes.", 'success');
                         this.closeZoom();
                         this.refreshInventory();
-                    } else {
-                        this.showNotification("Code déjà utilisé.", 'info');
-                        this.closeZoom();
                     }
                 } 
                 // Si c'est un piège connu
@@ -350,11 +481,19 @@ export class Game extends Scene {
         const takeCard = () => {
             const val = document.getElementById('search-card').value.trim();
 
-            // Check piège
+            // Check piège : On donne la carte ET on retire le temps
             if (GameData.penalties[val]) {
                 const p = GameData.penalties[val];
                 this.applyPenalty(p.time);
-                this.showNotification(p.message, 'warning');
+                this.showNotification(`CARTE PIÈGE ! (-${p.time} min)`, 'warning');
+                
+                // On ajoute la carte piège à l'inventaire si elle existe visuellement
+                if (GameData.cards[val] && !this.inventory.includes(val)) {
+                    this.inventory.push(val);
+                    this.currentPage = Math.ceil(this.inventory.length / this.itemsPerPage) - 1;
+                    this.refreshInventory();
+                }
+                
                 document.getElementById('search-card').value = '';
                 return;
             }

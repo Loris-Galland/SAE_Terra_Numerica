@@ -1,5 +1,5 @@
 export const GameData = {
-    // Liste de toutes les cartes valides du jeu
+    // Liste de toutes les cartes (Valides + Pièges pour qu'elles s'affichent)
     cardIds: [
         '1', '23', '26', '37', 
         '16', '45', '76', 
@@ -7,41 +7,40 @@ export const GameData = {
         '74', '71', '56', '62', 
         '58', '91', '14', 
         '31', '4', '50', '75', 
-        '88', '55', '22', '21'
+        '88', '55', '22', '21',
+        // IDs des pièges
+        '49', '77', '87', '84', '85', '86', '61', '63', '64', '93', '94', '95', '44'
     ],
 
     // On commence avec ça
     initialInventory: ['1', '23', '26'],
 
-    // Les cartes pièges (Master Plan) qui enlèvent du temps
+    // Les pénalités de temps
     penalties: {
-        // Phase T9
-        '49': { time: 5, message: "Erreur T9 ! (-5 min)" },
-        '77': { time: 5, message: "Mauvais code ! (-5 min)" },
-        '87': { time: 5, message: "Erreur décodage ! (-5 min)" },
-        
-        // Phase Braille
-        '84': { time: 5, message: "Faux ! (-5 min)" },
-        '85': { time: 5, message: "Faux ! (-5 min)" },
-        '86': { time: 5, message: "Faux ! (-5 min)" },
-
-        // Phase César
-        '61': { time: 5, message: "Erreur César ! (-5 min)" },
-        '63': { time: 5, message: "Erreur César ! (-5 min)" },
-        '64': { time: 5, message: "Erreur César ! (-5 min)" },
-
-        // Final
-        '93': { time: 5, message: "Mauvaise piste... (-5 min)" },
-        '94': { time: 5, message: "Erreur calcul ! (-5 min)" },
-        '95': { time: 5, message: "Perdu... (-5 min)" },
-        '44': { time: 5, message: "Carte Piège ! (-5 min)" }
+        '49': 5, '77': 5, '87': 5,
+        '84': 5, '85': 5, '86': 5,
+        '61': 5, '63': 5, '64': 5,
+        '93': 5, '94': 5, '95': 5, '44': 5
     },
 
     // Infos et interactions des cartes
     cards: {
         '1': { name: "Livret", type: 'info', text: "Le livret explique le code César..." },
+        
+        // Carte 23 : Juste un indice
         '23': { name: "Lune", type: 'indice', text: "LUNE... C'est le nom du prof." },
-        '26': { name: "Téléphone", type: 'indice', text: "Un vieux téléphone T9." }, 
+
+        // Carte 26 : Le Puzzle T9 est ici
+        '26': { 
+            name: "Téléphone", 
+            type: 'puzzle',      
+            puzzleType: 't9',    
+            solution: '555886633', 
+            rewards: ['37', '16', '45', '76'], 
+            successMessage: "Connexion établie ! La porte s'ouvre.",
+            hint: "Regarde la carte 23 (LUNE). Sur un clavier : L=5, U=8...",
+            text: "Un vieux téléphone. Il semble fonctionner."
+        }, 
 
         '37': {
             name: "Porte",
@@ -93,11 +92,26 @@ export const GameData = {
             name: "Ordinateur",
             type: 'machine',
             prompt: "LOGIN (ID + MDP) :",
-            code: '88179401', // ID + Animaux
+            code: '88179401', 
             rewards: ['22'],
             successMessage: "ACCÈS AUTORISÉ."
         },
         '22': { name: "VICTOIRE", type: 'win', text: "Bravo ! Vous avez réussi." },
-        '21': { name: "Rotor", type: 'item' }
+        '21': { name: "Rotor", type: 'item' },
+
+        // Définitions visuelles des cartes pièges (pour l'inventaire)
+        '49': { name: "ERREUR", type: 'error', text: "Mauvaise réponse. -5 Minutes." },
+        '77': { name: "ERREUR", type: 'error', text: "Ce n'est pas le bon code. -5 Minutes." },
+        '87': { name: "ERREUR", type: 'error', text: "Erreur de décodage. -5 Minutes." },
+        '84': { name: "ERREUR", type: 'error', text: "Erreur Braille. -5 Minutes." },
+        '85': { name: "ERREUR", type: 'error', text: "Erreur Braille. -5 Minutes." },
+        '86': { name: "ERREUR", type: 'error', text: "Erreur Braille. -5 Minutes." },
+        '61': { name: "ERREUR", type: 'error', text: "Erreur César. -5 Minutes." },
+        '63': { name: "ERREUR", type: 'error', text: "Erreur César. -5 Minutes." },
+        '64': { name: "ERREUR", type: 'error', text: "Erreur César. -5 Minutes." },
+        '93': { name: "ERREUR", type: 'error', text: "Fausse piste. -5 Minutes." },
+        '94': { name: "ERREUR", type: 'error', text: "Fausse piste. -5 Minutes." },
+        '95': { name: "ERREUR", type: 'error', text: "Fausse piste. -5 Minutes." },
+        '44': { name: "ERREUR", type: 'error', text: "Fausse piste. -5 Minutes." }
     }
 };
