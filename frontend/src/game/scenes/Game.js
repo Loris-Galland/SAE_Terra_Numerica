@@ -2,9 +2,15 @@ import { Scene } from "phaser";
 import { GameData } from "../GameData";
 import { EventBus } from "../EventBus";
 
+/**
+ * SCÈNE PRINCIPALE DU JEU
+ * Gère l'inventaire, les énigmes, le timer et les interactions.
+ */
 export class Game extends Scene {
     constructor() {
         super("Game");
+
+        // --- ÉTATS DU JEU ---
         this.inventory = [];
         this.currentZoomId = null;
         this.isFlipped = false;
@@ -12,43 +18,197 @@ export class Game extends Scene {
         // Gestion erreurs puzzle T9
         this.errorCount = 0;
 
-        // Pagination inventaire
-        this.currentPage = 0;
-        this.itemsPerPage = 4;
-
-        // Timer 1h
+        // --- TIMER ---
+        // 1 heure = 3600 secondes
         this.initialTime = 3600;
         this.timerEvent = null;
 
-        // L'état des cartes
+        // --- ÉTAT DES CARTES (Logique conservée) ---
+        // Cartes dont l'énigme est résolue (grisées)
         this.completedCards = [];
+        // Cartes retournées au moins une fois (restent face visible)
         this.revealedCards = [];
+
+        // --- THEME GRAPHIQUE ---
+        this.theme = {
+            gold: 0xc5a059,
+            dark: 0x12100e,
+            red: 0x8a0303
+        };
     }
 
+    /**
+     * INITIALISATION DE LA SCÈNE
+     */
     create() {
-        // Setup du fond
-        this.add
-            .image(this.scale.width / 2, this.scale.height / 2, "background")
-            .setAlpha(0.2);
+        const { width, height } = this.scale;
+
+        // ---------------------------------------------------------
+        // 1. MISE EN PLACE DU DÉCOR (NOUVEAU FORMAT)
+        // ---------------------------------------------------------
+
+        // A. BACKGROUND "COVER" (Prend tout l'écran sans déformation)
+        if (this.textures.exists("background")) {
+            const bg = this.add.image(width / 2, height / 2, "background");
+
+            // Calcul du ratio pour couvrir tout l'écran
+            const scaleX = width / bg.width;
+            const scaleY = height / bg.height;
+            const scale = Math.max(scaleX, scaleY);
+
+            bg.setScale(scale).setScrollFactor(0);
+            bg.setAlpha(0.3); // Assombri pour lisibilité
+            bg.setTint(0x888888); // Légère teinte froide
+        } else {
+            // Fallback
+            this.add.rectangle(0, 0, width, height, 0x1a1a1a).setOrigin(0);
+        }
+
+        // B. LE BUREAU (Zone d'inventaire en bas)
+        // On définit une zone dédiée aux cartes pour qu'elles soient lisibles
+        const deskHeight = 320;
+        const deskY = height - deskHeight;
+
+        // Dégradé sombre pour le fond du bureau
+        const graphics = this.add.graphics();
+        graphics.fillGradientStyle(0x000000, 0x000000, 0x1a1512, 0x1a1512, 0.1, 0.1, 0.95, 0.95);
+        graphics.fillRect(0, deskY, width, deskHeight);
+
+        // Ligne de séparation dorée
+        this.add.rectangle(width / 2, deskY, width, 3, this.theme.gold).setAlpha(0.6);
+
+        // ---------------------------------------------------------
+        // 2. INITIALISATION DES DONNÉES
+        // ---------------------------------------------------------
 
         // On init l'inventaire sans doublons
         this.inventory = [...new Set(GameData.initialInventory)];
 
+        // Conteneur des cartes
         this.cardsContainer = this.add.container(0, 0);
 
-        // On lance tous les systèmes
-        this.createUISystem(); // Barre recherche
-        this.createNotebook(); // Notes
-        this.createHintSystem(); // Indices
-        this.createTimer();
+        // ---------------------------------------------------------
+        // 3. LANCEMENT DES SYSTÈMES
+        // ---------------------------------------------------------
+
+        this.createUISystem();           // Barre recherche
+        this.createNotebook();           // Notes HTML
+        this.createHintSystem();         // Indices
+        this.createTimer();              // Timer
+        
+        // Affiche l'inventaire (Adapté en Grille sans pagination)
         this.refreshInventory();
-        this.createZoomInterface();
+        
+        this.createZoomInterface();      // Zoom Overlay
         this.createNotificationSystem(); // Popups
 
         EventBus.emit("current-scene-ready", this);
     }
 
-    // Gestion des notifications (Popups in-game)
+    // =================================================================
+    // GESTION DE L'INVENTAIRE (GRILLE DYNAMIQUE - LOGIQUE CONSERVÉE)
+    // =================================================================
+
+    refreshInventory() {
+        this.cardsContainer.removeAll(true);
+        const { width, height } = this.scale;
+
+        // Configuration de la grille (Au lieu de la pagination)
+        const cardTargetWidth = 140; // Largeur visuelle
+        const gapX = 40;             // Espace horizontal
+        
+        // Calcul pour centrer la grille
+        const availableWidth = width - 100; // Marges
+        const cardsPerRow = Math.floor(availableWidth / (cardTargetWidth + gapX));
+        
+        // Position de départ (Zone bureau)
+        const deskY = height - 280; 
+
+        this.inventory.forEach((id, index) => {
+            // Calcul Ligne / Colonne
+            const col = index % cardsPerRow;
+            const row = Math.floor(index / cardsPerRow);
+
+            // Centrage de la ligne actuelle
+            const currentLineCount = (row === Math.floor((this.inventory.length - 1) / cardsPerRow)) 
+                ? (this.inventory.length % cardsPerRow) || cardsPerRow 
+                : cardsPerRow;
+            
+            const lineWidth = (currentLineCount * cardTargetWidth) + ((currentLineCount - 1) * gapX);
+            const startX = (width / 2) - (lineWidth / 2) + (cardTargetWidth / 2);
+
+            const x = startX + (col * (cardTargetWidth + gapX));
+            const y = deskY + (row * 100); // Décalage vertical si plusieurs lignes
+
+            // -----------------------------------------------------
+            // LOGIQUE DE LA CARTE (CONSERVÉE DU FICHIER ORIGINAL)
+            // -----------------------------------------------------
+
+            const isRevealed = this.revealedCards.includes(id);
+            const isCompleted = this.completedCards.includes(id);
+
+            // Si révélée, on affiche directement le devant, sinon le dos
+            const initialTexture = isRevealed ? `devant_${id}` : `dos_${id}`;
+
+            const sprite = this.add
+                .sprite(x, y, initialTexture)
+                .setInteractive();
+            
+            // Mise à l'échelle uniforme
+            const scale = 150 / sprite.height;
+            sprite.setScale(scale);
+
+            // Si la carte est finie (ex: énigme résolue)
+            if (isCompleted) {
+                sprite.setTint(0x555555); // On grise
+                sprite.disableInteractive(); // On empêche le clic
+            } else {
+                // Gestion du survol (Hover)
+                sprite.on("pointerover", () => {
+                    this.tweens.add({
+                        targets: sprite,
+                        scale: scale * 1.15, // Zoom léger
+                        y: y - 15,          // Monte un peu
+                        duration: 100,
+                        ease: 'Back.out'
+                    });
+                    sprite.setTint(0xdddddd); // Surbrillance
+
+                    // Si elle n'est pas déjà révélée définitivement, on montre le devant au survol (Aperçu)
+                    if (!isRevealed) {
+                        sprite.setTexture(`devant_${id}`);
+                    }
+                    
+                    this.cardsContainer.bringToTop(sprite);
+                });
+
+                sprite.on("pointerout", () => {
+                    this.tweens.add({
+                        targets: sprite,
+                        scale: scale,
+                        y: y,
+                        duration: 100,
+                        ease: 'Quad.out'
+                    });
+                    sprite.clearTint();
+
+                    // Si elle n'est pas révélée définitivement, on remet le dos
+                    if (!isRevealed) {
+                        sprite.setTexture(`dos_${id}`);
+                    }
+                });
+
+                sprite.on("pointerdown", () => this.openZoom(id));
+            }
+
+            this.cardsContainer.add(sprite);
+        });
+    }
+
+    // =================================================================
+    // SYSTÈME DE NOTIFICATIONS (POPUPS)
+    // =================================================================
+
     createNotificationSystem() {
         this.notificationContainer = this.add
             .container(this.scale.width / 2, -100)
@@ -58,6 +218,7 @@ export class Game extends Scene {
         this.notifBg = this.add
             .rectangle(0, 0, 600, 80, 0x000000, 0.9)
             .setStrokeStyle(4, 0xffffff);
+            
         this.notifText = this.add
             .text(0, 0, "", {
                 font: "bold 24px Arial",
@@ -102,7 +263,10 @@ export class Game extends Scene {
         });
     }
 
-    // Système d'indices (Haut Droite)
+    // =================================================================
+    // SYSTÈME D'INDICES (HAUT DROITE)
+    // =================================================================
+
     createHintSystem() {
         this.hintContainer = this.add.container(this.scale.width - 250, 20);
 
@@ -110,6 +274,7 @@ export class Game extends Scene {
             .rectangle(0, 0, 240, 100, 0x000000, 0.6)
             .setOrigin(0, 0)
             .setStrokeStyle(2, 0xffd700);
+            
         const title = this.add.text(10, 5, "INDICES DISPONIBLES", {
             font: "bold 16px Arial",
             color: "#ffd700",
@@ -138,7 +303,10 @@ export class Game extends Scene {
         });
     }
 
-    // Timer et Pénalités
+    // =================================================================
+    // TIMER ET PÉNALITÉS (HAUT GAUCHE)
+    // =================================================================
+
     createTimer() {
         // Décalé à gauche pour laisser place aux indices
         const bg = this.add.rectangle(
@@ -196,125 +364,10 @@ export class Game extends Scene {
         this.cameras.main.flash(500, 255, 0, 0);
     }
 
-    // Affichage Inventaire
-    refreshInventory() {
-        this.cardsContainer.removeAll(true);
+    // =================================================================
+    // CARNET DE NOTES (HTML)
+    // =================================================================
 
-        // Pagination
-        const totalPages = Math.ceil(this.inventory.length / this.itemsPerPage);
-        if (this.currentPage >= totalPages && totalPages > 0)
-            this.currentPage = totalPages - 1;
-
-        const startIndex = this.currentPage * this.itemsPerPage;
-        const cardsOnPage = this.inventory.slice(
-            startIndex,
-            startIndex + this.itemsPerPage,
-        );
-
-        const startX = 200;
-        const startY = this.scale.height - 200;
-        const gap = 200;
-
-        cardsOnPage.forEach((id, index) => {
-            const x = startX + index * gap;
-
-            // On vérifie l'état de la carte
-            const isRevealed = this.revealedCards.includes(id);
-            const isCompleted = this.completedCards.includes(id);
-
-            // Si révélée, on affiche directement le devant, sinon le dos
-            const initialTexture = isRevealed ? `devant_${id}` : `dos_${id}`;
-
-            const sprite = this.add
-                .sprite(x, startY, initialTexture)
-                .setInteractive();
-            const scale = 150 / sprite.height;
-            sprite.setScale(scale);
-
-            // Si la carte est finie (ex: énigme résolue)
-            if (isCompleted) {
-                sprite.setTint(0x555555); // On grise
-                sprite.disableInteractive(); // On empêche le clic
-            } else {
-                // Gestion du survol (Hover)
-                sprite.on("pointerover", () => {
-                    this.tweens.add({
-                        targets: sprite,
-                        scale: scale * 1.1,
-                        y: startY - 10,
-                        duration: 100,
-                    });
-                    sprite.setTint(0xdddddd);
-
-                    // Si elle n'est pas déjà révélée définitivement, on montre le devant au survol
-                    if (!isRevealed) {
-                        sprite.setTexture(`devant_${id}`);
-                    }
-                });
-
-                sprite.on("pointerout", () => {
-                    this.tweens.add({
-                        targets: sprite,
-                        scale: scale,
-                        y: startY,
-                        duration: 100,
-                    });
-                    sprite.clearTint();
-
-                    // Si elle n'est pas révélée définitivement, on remet le dos quand la souris part
-                    if (!isRevealed) {
-                        sprite.setTexture(`dos_${id}`);
-                    }
-                });
-
-                sprite.on("pointerdown", () => this.openZoom(id));
-            }
-
-            this.cardsContainer.add(sprite);
-        });
-
-        this.createPaginationControls(totalPages);
-    }
-
-    createPaginationControls(totalPages) {
-        const yPos = this.scale.height - 200;
-        // Bouton Précédent
-        if (this.currentPage > 0) {
-            const prevBtn = this.add
-                .text(50, yPos, "<", {
-                    font: "bold 60px Arial",
-                    color: "#00ff00",
-                    backgroundColor: "#00000088",
-                    padding: 10,
-                })
-                .setInteractive()
-                .setOrigin(0.5)
-                .on("pointerdown", () => {
-                    this.currentPage--;
-                    this.refreshInventory();
-                });
-            this.cardsContainer.add(prevBtn);
-        }
-        // Bouton Suivant
-        if (this.currentPage < totalPages - 1) {
-            const nextBtn = this.add
-                .text(this.scale.width - 50, yPos, ">", {
-                    font: "bold 60px Arial",
-                    color: "#00ff00",
-                    backgroundColor: "#00000088",
-                    padding: 10,
-                })
-                .setInteractive()
-                .setOrigin(0.5)
-                .on("pointerdown", () => {
-                    this.currentPage++;
-                    this.refreshInventory();
-                });
-            this.cardsContainer.add(nextBtn);
-        }
-    }
-
-    // Notes
     createNotebook() {
         if (document.getElementById("notebook-btn")) return;
 
@@ -343,7 +396,10 @@ export class Game extends Scene {
         };
     }
 
-    // Zoom et Puzzles Interactifs
+    // =================================================================
+    // INTERFACE DE ZOOM & PUZZLES
+    // =================================================================
+
     createZoomInterface() {
         this.zoomContainer = this.add
             .container(0, 0)
@@ -360,6 +416,7 @@ export class Game extends Scene {
                 0.95,
             )
             .setInteractive();
+            
         this.zoomCardSprite = this.add.sprite(
             this.scale.width / 2,
             this.scale.height / 2,
@@ -477,11 +534,10 @@ export class Game extends Scene {
         const searchUI = document.getElementById("ui-search-container");
         if (searchUI) searchUI.style.display = "flex";
 
-        // Refresh pour update les cartes retournées
+        // Refresh pour update les cartes retournées (si changées pendant le zoom)
         this.refreshInventory();
     }
 
-    // Puzzle Téléphone HTML
     renderPhonePuzzle(cardId) {
         const div = document.createElement("div");
         div.id = "puzzle-container";
@@ -708,8 +764,11 @@ export class Game extends Scene {
             };
         }
     }
+    
+    // =================================================================
+    // BARRE DE RECHERCHE (UI)
+    // =================================================================
 
-    // Barre de recherche
     createUISystem() {
         const oldDiv = document.getElementById("ui-search-container");
         if (oldDiv) oldDiv.remove();
@@ -738,9 +797,7 @@ export class Game extends Scene {
 
                 if (GameData.cards[val] && !this.inventory.includes(val)) {
                     this.inventory.push(val);
-                    this.currentPage =
-                        Math.ceil(this.inventory.length / this.itemsPerPage) -
-                        1;
+                    // Pas de pagination, on refresh juste la grille
                     this.refreshInventory();
                 }
                 document.getElementById("search-card").value = "";
@@ -776,8 +833,6 @@ export class Game extends Scene {
 
             // Ajout valide
             this.inventory.push(val);
-            this.currentPage =
-                Math.ceil(this.inventory.length / this.itemsPerPage) - 1;
             this.refreshInventory();
             this.showNotification(`Carte ${val} récupérée !`, "success");
             document.getElementById("search-card").value = "";
