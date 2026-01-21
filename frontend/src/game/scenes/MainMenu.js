@@ -8,62 +8,83 @@ export class MainMenu extends Scene {
 
     create() {
         const { width, height } = this.scale;
-
-        // Fond d'écran
-        this.add.image(width / 2, height / 2, 'background').setAlpha(0.4);
-
-        // Titre
-        this.add.text(width / 2, 150, 'ESCAPE GAME\nTERRA NUMERICA', {
-            fontFamily: 'Arial Black',
-            fontSize: 64,
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 8,
-            align: 'center'
-        }).setOrigin(0.5);
-
-        // Bouton Jouer
-        const startBtn = this.add.text(width / 2, height / 2 + 100, 'COMMENCER', {
-            fontFamily: 'Arial Black',
-            fontSize: 32,
-            color: '#00ff00',
-            backgroundColor: '#000000',
-            padding: { x: 20, y: 10 }
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-
-        startBtn.on('pointerdown', () => {
-            this.scene.start('Game');
-        });
-        
-        startBtn.on('pointerover', () => startBtn.setStyle({ fill: '#ffff00' }));
-        startBtn.on('pointerout', () => startBtn.setStyle({ fill: '#00ff00' }));
-
-        // On affiche une carte qui se retourne toute seule 
-        this.createDemoCard(width - 150, height - 200, '1'); 
-
-        EventBus.emit('current-scene-ready', this);
-    }
-
-    createDemoCard(x, y, id) {
-        // Commence par le DOS
-        const card = this.add.image(x, y, `dos_${id}`).setScale(0.4);
-        
-        // Animation de retournement infinie
+        this.add.rectangle(0, 0, width, height, 0x111111).setOrigin(0);
+        if (this.textures.exists('background')) {
+            const bg = this.add.image(width / 2, height / 2, 'background');
+            const scaleX = width / bg.width;
+            const scaleY = height / bg.height;
+            const scale = Math.max(scaleX, scaleY);
+            bg.setScale(scale).setScrollFactor(0);
+            bg.setAlpha(0.3);
+            bg.setTint(0xaaaaaa);
+        }
+        const spotLight = this.add.circle(width / 2, height / 2 - 100, 400, 0xffffff, 0.05);
         this.tweens.add({
-            targets: card,
-            scaleX: 0, 
-            duration: 1000,
+            targets: spotLight,
+            alpha: 0.08,
+            scale: 1.1,
+            duration: 2000,
             yoyo: true,
             repeat: -1,
-            hold: 500, 
-            onYoyo: () => {
-                // Au moment où la carte est invisible (scaleX = 0), on change la texture
-                const currentKey = card.texture.key;
-                const newKey = currentKey === `dos_${id}` ? `devant_${id}` : `dos_${id}`;
-                card.setTexture(newKey);
-            }
+            ease: 'Sine.easeInOut'
         });
+        const titleText = "DOSSIER:\nTERRA NUMERICA";
+        const titleObj = this.add.text(width / 2, height / 3, '', {
+            fontFamily: 'Courier New',
+            fontSize: 84,
+            color: '#ffffff',
+            align: 'center',
+            fontStyle: 'bold',
+            shadow: { offsetX: 4, offsetY: 4, color: '#000', blur: 0, fill: true }
+        }).setOrigin(0.5);
+
+        let i = 0;
+        this.time.addEvent({
+            delay: 150,
+            callback: () => {
+                titleObj.text += titleText[i];
+                i++;
+            },
+            repeat: titleText.length - 1
+        });
+        this.add.text(width - 50, height - 50, 'REF: CASE #99-2024\nSTATUS: NON RESOLU', {
+            fontFamily: 'Courier New',
+            fontSize: 18,
+            color: '#cc0000',
+            align: 'right'
+        }).setOrigin(1, 1).setAlpha(0.7);
+        const btnContainer = this.add.container(width / 2, height * 0.7);
+        const folder = this.add.rectangle(0, 0, 300, 80, 0xd2b48c).setStrokeStyle(4, 0x5d4037); // Couleur Kraft
+        const paperClip = this.add.rectangle(-130, -30, 20, 40, 0xc0c0c0).setStrokeStyle(2, 0x555555); // Trombone
+        const btnText = this.add.text(0, 0, "OUVRIR L'ENQUÊTE", {
+            fontFamily: 'Courier New',
+            fontSize: 28,
+            color: '#3e2723',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        const stamp = this.add.text(100, -20, "CONFIDENTIEL", {
+            fontFamily: 'Arial Black',
+            fontSize: 16,
+            color: '#cc0000',
+            backgroundColor: null
+        }).setOrigin(0.5).setRotation(0.2).setAlpha(0.8);
+        const stampBorder = this.add.rectangle(100, -20, 140, 30).setStrokeStyle(2, 0xcc0000).setRotation(0.2).setAlpha(0.8);
+        btnContainer.add([folder, paperClip, btnText, stampBorder, stamp]);
+        folder.setInteractive({ useHandCursor: true })
+            .on('pointerover', () => {
+                btnContainer.setScale(1.05);
+                folder.setFillStyle(0xe0c090);
+            })
+            .on('pointerout', () => {
+                btnContainer.setScale(1);
+                folder.setFillStyle(0xd2b48c);
+            })
+            .on('pointerdown', () => {
+                this.cameras.main.fadeOut(1000, 0, 0, 0);
+                this.time.delayedCall(1000, () => {
+                    this.scene.start('Game');
+                });
+            });
+        EventBus.emit('current-scene-ready', this);
     }
 }

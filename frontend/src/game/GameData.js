@@ -35,6 +35,8 @@ export const GameData = {
             puzzleType: 't9',    
             solution: '555886633', 
             rewards: ['37', '16', '45', '76'], 
+            // On grise le téléphone et les indices (Lune + Livret)
+            linkedIds: ['1', '23', '26'],
             successMessage: "Connexion établie ! La porte s'ouvre.",
             hint: "Regarde la carte 23 (LUNE). Sur un clavier : L=5, U=8...",
             text: "Un vieux téléphone. Il semble fonctionner."
@@ -46,6 +48,7 @@ export const GameData = {
             prompt: "Code de la porte (T9) ?",
             code: '555886633', 
             rewards: ['16', '45', '76'],
+            linkedIds: ['37'], 
             successMessage: "La porte s'ouvre !"
         },
         
@@ -61,8 +64,10 @@ export const GameData = {
             prompt: "Code à 4 chiffres ?",
             code: '0818',
             rewards: ['11'],
+            // Une fois ouvert, on grise le tiroir (13) et la table braille (78)
+            linkedIds: ['13', '78'], 
             successMessage: "Le tiroir s'ouvre !",
-            requires: ['16'] // Visible sur le bureau 16
+            requires: ['16'] 
         },
         '78': { name: "Table Braille", type: 'indice', requires: ['16'] },
         '58': { name: "Lampe", type: 'indice', text: "Il manque l'abat-jour (91).", requires: ['16'] },
@@ -72,6 +77,8 @@ export const GameData = {
             prompt: "Mot de passe ?",
             code: 'VERTU', 
             rewards: ['62'],
+            // Une fois ouvert, on grise le tiroir (56), le disque (71) et le livre (74)
+            linkedIds: ['56', '71', '74'],
             successMessage: "Table des symboles trouvée.",
             requires: ['16']
         },
@@ -87,16 +94,16 @@ export const GameData = {
         '31': { name: "Livre Océan", type: 'indice', requires: ['76'] },
 
         // Suite des énigmes (Objets cachés)
-        '11': { name: "Tiroir Ouvert", type: 'info', text: "Il y a une carte 67 (Lampe UV)." }, // Donné par 13
+        '11': { name: "Tiroir Ouvert", type: 'info', text: "Il y a une carte 67 (Lampe UV)." }, 
         
-        '67': { name: "Lampe UV", type: 'indice', text: "Révèle 'Océan p. 242' sur le mur.", requires: ['11'] }, // Dans le tiroir 11
+        '67': { name: "Lampe UV", type: 'indice', text: "Révèle 'Océan p. 242' sur le mur.", requires: ['11'] }, 
         
-        '62': { name: "Symboles", type: 'indice' }, // Donné par 56
+        '62': { name: "Symboles", type: 'indice' }, 
 
-        '4': { name: "Page 242", type: 'indice', requires: ['31'] }, // Dans le livre 31
-        '50': { name: "Unité Centrale", type: 'info', requires: ['76'] }, // Visible biblio ou via 4
+        '4': { name: "Page 242", type: 'indice', requires: ['31'] }, 
+        '50': { name: "Unité Centrale", type: 'info', requires: ['76'] }, 
         '75': { name: "Code Morse", type: 'indice' },
-        '88': { name: "Identifiant", type: 'info', text: "ID: 88", requires: ['76'] }, // Visible biblio
+        '88': { name: "Identifiant", type: 'info', text: "ID: 88", requires: ['76'] }, 
         
         '55': {
             name: "Ordinateur",
@@ -104,9 +111,12 @@ export const GameData = {
             prompt: "LOGIN (ID + MDP) :",
             code: '88179401', 
             rewards: ['22'],
+            // On grise TOUT ce qui a servi 
+            linkedIds: ['55', '50', '88', '75', '4', '14', '31', '58', '91', '67', '62'],
             successMessage: "ACCÈS AUTORISÉ."
         },
         '22': { name: "VICTOIRE", type: 'win', text: "Bravo ! Vous avez réussi." },
+        '21': { name: "Rotor", type: 'item', requires: ['76'] },
 
         // Pièges (Affichage)
         '49': { name: "ERREUR", type: 'error', text: "Mauvaise réponse. -5 Minutes." },

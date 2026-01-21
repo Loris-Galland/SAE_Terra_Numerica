@@ -5,14 +5,19 @@ import { MainMenu } from './scenes/MainMenu';
 import Phaser from 'phaser';
 import { Preloader } from './scenes/Preloader';
 
-// Find out more information about the Game Config at:
-// https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
 const config = {
     type: Phaser.AUTO,
-    width: 1024,
-    height: 768,
     parent: 'game-container',
-    backgroundColor: '#028af8',
+    backgroundColor: '#000000',
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.NO_CENTER,
+        width: 1920,
+        height: 1080
+    },
+    dom: {
+        createContainer: true
+    },
     scene: [
         Boot,
         Preloader,
@@ -23,9 +28,7 @@ const config = {
 };
 
 const StartGame = (parent) => {
-
     return new Phaser.Game({ ...config, parent });
-
 }
 
 export default StartGame;
